@@ -1,0 +1,367 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  plan      String   @default("starter") // starter, professional, business, enterprise
+  status    String   @default("active") // active, suspended
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businesses            Business[]
+  customers             Customer[]
+  users                 User[]
+  notificationTemplates NotificationTemplate[]
+  waitlistEntries       WaitlistEntry[]
+  auditLogs             AuditLog[]
+}
+
+model Business {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  logoUrl     String?
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  timezone    String   @default("America/Panama")
+  currency    String   @default("USD")
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  locations           Location[]
+  services            Service[]
+  cancellationPolicies CancellationPolicy[]
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  address     String
+  phone       String?
+  email       String?
+  timezone    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business   @relation(fields: [businessId], references: [id])
+  resources Resource[]
+  bookings  Booking[]
+}
+
+model User {
+  id            String    @id @default(uuid())
+  tenantId      String
+  name          String
+  email         String
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          String    @default("receptionist") // platform_admin, business_owner, manager, receptionist, professional
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id])
+  resource Resource[]
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  lastName    String?
+  email       String?
+  phone       String?
+  isGuest     Boolean  @default(true)
+  status      String   @default("active") // active, inactive, banned
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  bookings Booking[]
+}
+
+model Service {
+  id                   String   @id @default(uuid())
+  businessId           String
+  name                 String
+  description          String?  @db.Text
+  duration             Int      // minutes
+  bufferBefore         Int      @default(0) // minutes
+  bufferAfter          Int      @default(0) // minutes
+  capacity             Int      @default(1)
+  basePrice            Decimal  @db.Decimal(10, 2)
+  depositType          String   @default("none") // none, percentage, fixed
+  depositValue         Decimal? @db.Decimal(10, 2)
+  cancellationPolicyId String?
+  isActive             Boolean  @default(true)
+  isVisible            Boolean  @default(true)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  business           Business            @relation(fields: [businessId], references: [id])
+  cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  servicePricings    ServicePricing[]
+  resources          Resource[]          @relation("ServiceToResource")
+  bookings           Booking[]
+  waitlistEntries    WaitlistEntry[]
+}
+
+model ServicePricing {
+  id        String   @id @default(uuid())
+  serviceId String
+  name      String   // E.g., "Weekend", "Senior Stylist"
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model CancellationPolicy {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  rules      Json     // Array of rules (e.g., [{ hoursBefore: 48, refundPercent: 100 }])
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id])
+  services Service[]
+}
+
+model Resource {
+  id           String   @id @default(uuid())
+  type         String   // staff, room, equipment
+  name         String
+  locationId   String
+  capacity     Int      @default(1)
+  tags         String?  // JSON array
+  specialPrice Decimal? @db.Decimal(10, 2)
+  imageUrl     String?
+  userId       String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  location           Location            @relation(fields: [locationId], references: [id])
+  user               User?               @relation(fields: [userId], references: [id])
+  services           Service[]           @relation("ServiceToResource")
+  schedules          Schedule[]
+  scheduleExceptions ScheduleException[]
+  scheduleBlocks     ScheduleBlock[]
+  bookings           Booking[]
+}
+
+model Schedule {
+  id         String   @id @default(uuid())
+  resourceId String
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday...
+  startTime  String   // "09:00"
+  endTime    String   // "18:00"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  resource Resource @relation(fields: [resourceId], references: [id])
+}
+
+model ScheduleException {
+  id         String   @id @default(uuid())
+  resourceId String
+  date       DateTime // Specific date
+  isWorking  Boolean  // true if working different hours, false if off
+  startTime  String?  // "09:00"
+  endTime    String?  // "12:00"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  resource Resource @relation(fields: [resourceId], references: [id])
+}
+
+model ScheduleBlock {
+  id         String   @id @default(uuid())
+  resourceId String
+  title      String
+  startTime  DateTime
+  endTime    DateTime
+  status     String   @default("approved") // pending, approved, rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  resource Resource @relation(fields: [resourceId], references: [id])
+}
+
+model Booking {
+  id             String   @id @default(uuid())
+  tenantId       String
+  businessId     String
+  locationId     String
+  serviceId      String
+  resourceId     String?
+  customerId     String
+  status         String   @default("draft") // draft, pending_payment, confirmed, expired, cancelled, completed, no_show, rescheduled
+  startTime      DateTime
+  endTime        DateTime
+  totalPrice     Decimal  @db.Decimal(10, 2)
+  requireDeposit Boolean  @default(false)
+  depositAmount  Decimal? @db.Decimal(10, 2)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  service       Service        @relation(fields: [serviceId], references: [id])
+  resource      Resource?      @relation(fields: [resourceId], references: [id])
+  location      Location       @relation(fields: [locationId], references: [id])
+  payments      Payment[]
+  notifications Notification[]
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  tenantId      String
+  bookingId     String
+  stripeIntentId String?  @unique
+  amount        Decimal  @db.Decimal(10, 2)
+  currency      String   @default("USD")
+  status        String   @default("pending") // pending, succeeded, failed, refunded
+  paymentMethod String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  booking Booking  @relation(fields: [bookingId], references: [id])
+  refunds Refund[]
+}
+
+model Refund {
+  id             String   @id @default(uuid())
+  paymentId      String
+  stripeRefundId String?  @unique
+  amount         Decimal  @db.Decimal(10, 2)
+  status         String   @default("pending") // pending, succeeded, failed
+  reason         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+}
+
+model NotificationTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String
+  event     String   // e.g., booking.confirmed, booking.reminder
+  channel   String   @default("email") // email, sms
+  subject   String?
+  body      String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  tenantId   String
+  bookingId  String?
+  customerId String?
+  type       String   // email, sms
+  event      String   // booking.confirmed
+  status     String   // pending, sent, failed
+  error      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  booking Booking? @relation(fields: [bookingId], references: [id])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  tenantId       String?
+  actorId        String?
+  actorRole      String?
+  action         String
+  entityType     String
+  entityId       String
+  previousValues Json?
+  newValues      Json?
+  ipAddress      String?
+  userAgent      String?
+  sessionId      String?
+  createdAt      DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+}
+
+model WaitlistEntry {
+  id         String   @id @default(uuid())
+  tenantId   String
+  serviceId  String
+  customerId String
+  date       DateTime
+  status     String   @default("waiting") // waiting, notified, fulfilled, cancelled
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+}
