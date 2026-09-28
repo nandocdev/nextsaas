@@ -1,20 +1,24 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# NextSaaS — Experimental Prototype
 
-# Run and deploy your AI Studio app
+> ⚠️ **Experimental prototype.** This repository is not an actively maintained product.
 
-This contains everything you need to run your app locally.
+This repository contains an early exploration of SaaS UI and application structure generated through Google AI Studio workflows.
 
-View your app in AI Studio: https://ai.studio/apps/04634f6e-bd94-48be-97e8-6cc66df5f555
+It is preserved as a reference for experimentation with:
 
-## Run Locally
+- Next.js
+- React
+- SaaS interfaces
+- AI-assisted application generation
 
-**Prerequisites:**  Node.js
+## Status
 
+- **Development:** discontinued
+- **Purpose:** experimentation
+- **Production support:** none
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+For current work, see the [NandocDev repositories](https://github.com/nandocdev?tab=repositories).
+
+---
+
+[NandocDev](https://github.com/nandocdev)
